@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#050505">
+<title>Closet Measure</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,Arial,sans-serif;color:#fff;background:#050505}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050505}
+.app{position:relative;width:100%;height:100dvh;background:#050505;overflow:hidden}
+.camera-stage{position:absolute;inset:0;background:#050505;display:grid;place-items:center}
+video{width:100%;height:100%;object-fit:contain;background:#050505}
+#overlay{position:absolute;inset:0;width:100%;height:100%;touch-action:manipulation}
+.topbar{position:absolute;top:env(safe-area-inset-top,12px);left:0;right:0;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;z-index:5;pointer-events:none}
+.brand{font-size:15px;font-weight:700;letter-spacing:.3px;text-shadow:0 1px 5px #000}
+.icon-btn{pointer-events:auto;width:48px;height:48px;border:1px solid #ffffff30;border-radius:50%;background:#202020d9;color:white;font-size:25px;display:grid;place-items:center;box-shadow:0 3px 14px #0006}
+.menu{position:absolute;z-index:8;right:18px;top:calc(env(safe-area-inset-top,12px) + 70px);width:min(285px,calc(100vw - 36px));padding:9px;background:#171717f5;border:1px solid #ffffff24;border-radius:16px;box-shadow:0 12px 35px #0009;display:none;backdrop-filter:blur(14px)}
+.menu.open{display:block}
+.menu button{width:100%;text-align:left;padding:14px 12px;background:transparent;border:0;border-radius:10px;color:#fff;font-size:15px}
+.menu button:active{background:#ffffff18}
+.menu small{display:block;color:#aaa;font-size:12px;margin-top:3px}
+.bottom{position:absolute;z-index:5;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 25px);display:flex;flex-direction:column;align-items:center;gap:12px;pointer-events:none}
+.hint{max-width:85%;padding:8px 13px;border-radius:30px;background:#111b;color:#fff;font-size:13px;text-align:center;text-shadow:0 1px 3px #000;backdrop-filter:blur(8px)}
+.shutter-row{width:100%;display:flex;align-items:center;justify-content:center;position:relative}
+.shutter{pointer-events:auto;width:66px;height:66px;border-radius:50%;border:4px solid #fff;background:#ffffff20;box-shadow:0 2px 12px #0008;display:grid;place-items:center}
+.shutter:after{content:"";width:48px;height:48px;border-radius:50%;background:#fff}
+.side-action{pointer-events:auto;position:absolute;left:calc(50% + 57px);width:43px;height:43px;border:2px solid #fff;border-radius:50%;background:#ffffff20;color:#fff;font-size:18px}
+.mode-chip{position:absolute;z-index:4;top:calc(env(safe-area-inset-top,12px) + 76px);left:50%;transform:translateX(-50%);padding:7px 12px;border-radius:30px;background:#111b;font-size:12px;color:#fff;white-space:nowrap}
+.sheet-backdrop{position:absolute;inset:0;z-index:10;background:#0009;display:none;align-items:flex-end}
+.sheet-backdrop.show{display:flex}
+.sheet{width:100%;max-height:82%;overflow:auto;background:#171717;color:#fff;border-radius:22px 22px 0 0;padding:20px 18px calc(env(safe-area-inset-bottom,0px) + 22px);border-top:1px solid #ffffff24}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sheet h2{font-size:19px;margin:0}
+.close{border:0;background:#333;color:#fff;border-radius:50%;width:36px;height:36px;font-size:20px}
+.sheet p{color:#bbb;font-size:13px;line-height:1.45}
+label{display:block;font-size:13px;color:#ddd;margin:14px 0 6px}
+input{width:100%;padding:13px;border:1px solid #444;border-radius:10px;background:#252525;color:white;font-size:16px}
+.primary,.secondary{border:0;border-radius:11px;padding:13px 15px;font-size:14px;font-weight:700;margin:6px 5px 0 0}
+.primary{background:#fff;color:#111}.secondary{background:#333;color:#fff}
+.output{font-size:24px;font-weight:800;margin-top:12px}
+.muted{font-size:12px;color:#aaa}
+#cameraError{position:absolute;z-index:3;left:20px;right:20px;top:45%;text-align:center;color:#ddd;font-size:14px;line-height:1.5;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="camera-stage">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div id="cameraError">Appuie sur le bouton caméra pour commencer.</div>
+  </div>
+  <div class="topbar">
+    <div class="brand">CLOSET <span style="font-weight:400;color:#bbb">MEASURE</span></div>
+    <button class="icon-btn" id="menuBtn" aria-label="Paramètres">⋮</button>
+  </div>
+  <div class="mode-chip" id="modeChip">Mode : mesure</div>
+
+  <nav class="menu" id="menu">
+    <button data-action="measure">📏 Mesurer <small>Placer deux points et calculer une distance</small></button>
+    <button data-action="calibrate">🎯 Calibrage <small>Définir une distance de référence connue</small></button>
+    <button data-action="switch">🔄 Changer de caméra <small>Avant / arrière</small></button>
+    <button data-action="reset">↺ Réinitialiser <small>Effacer les points et le calibrage</small></button>
+    <button data-action="help">ⓘ Aide et précision <small>Comprendre le fonctionnement</small></button>
+  </nav>
+
+  <div class="bottom">
+    <div class="hint" id="hint">Vise le mur, puis touche le premier point.</div>
+    <div class="shutter-row">
+      <button class="shutter" id="pointBtn" aria-label="Placer un point"></button>
+      <button class="side-action" id="undoBtn" aria-label="Annuler">↶</button>
+    </div>
+  </div>
+
+  <div class="sheet-backdrop" id="sheetBackdrop">
+    <section class="sheet">
+      <div class="sheet-head"><h2 id="sheetTitle">Calibrage</h2><button class="close" id="closeSheet">×</button></div>
+      <div id="sheetContent"></div>
+    </section>
+  </div>
+</div>
+<script>
+(() => {
+ const video=document.getElementById('video'), canvas=document.getElementById('overlay'), ctx=canvas.getContext('2d');
+ const menu=document.getElementById('menu'), hint=document.getElementById('hint'), modeChip=document.getElementById('modeChip');
+ const cameraError=document.getElementById('cameraError'), backdrop=document.getElementById('sheetBackdrop');
+ let stream=null, facing='environment', mode='measure', points=[], metersPerPixel=null, knownDistance=1;
+ let pendingSheet='';
+ const setHint=t=>hint.textContent=t;
+ function canvasSize(){const r=canvas.getBoundingClientRect(),d=window.devicePixelRatio||1;canvas.width=Math.max(1,Math.round(r.width*d));canvas.height=Math.max(1,Math.round(r.height*d));ctx.setTransform(d,0,0,d,0,0);draw();}
+ function draw(){
+   const r=canvas.getBoundingClientRect();ctx.clearRect(0,0,r.width,r.height);
+   if(points.length===2){ctx.strokeStyle='#ff8a00';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(points[0].x,points[0].y);ctx.lineTo(points[1].x,points[1].y);ctx.stroke();}
+   points.forEach((p,i)=>{ctx.fillStyle='#ff8a00';ctx.beginPath();ctx.arc(p.x,p.y,8,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 13px system-ui';ctx.fillText(String(i+1),p.x+12,p.y-10);});
+ }
+ async function startCamera(){
+   if(!navigator.mediaDevices?.getUserMedia){cameraError.textContent='Caméra indisponible. Ouvre cette page en HTTPS ou sur localhost.';return;}
+   try{
+     if(stream)stream.getTracks().forEach(t=>t.stop());
+     stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:facing}}});
+     video.srcObject=stream;await video.play();cameraError.style.display='none';
+     video.onloadedmetadata=canvasSize;canvasSize();
+   }catch(e){cameraError.textContent='Impossible d’ouvrir la caméra. Vérifie les autorisations et utilise une adresse HTTPS.';}
+ }
+ function setMode(m){mode=m;points=[];modeChip.textContent='Mode : '+(m==='calibrate'?'calibrage':'mesure');setHint(m==='calibrate'?'Calibrage : touche deux points dont tu connais la distance.':'Vise le mur, puis touche le premier point.');draw();}
+ function openSheet(title,html){document.getElementById('sheetTitle').textContent=title;document.getElementById('sheetContent').innerHTML=html;backdrop.classList.add('show');}
+ function closeSheet(){backdrop.classList.remove('show');}
+ function showCalibrate(){
+   openSheet('Calibrage',`<p>Place deux repères sur le même mur, à une distance réelle connue. Ensuite, touche leurs positions dans l’image.</p>
+   <label for="known">Distance réelle (en mètres)</label><input id="known" type="number" min="0.01" step="0.01" value="${knownDistance}">
+   <button class="primary" id="beginCal">Commencer le calibrage</button><p class="muted">${metersPerPixel?'Un calibrage est déjà enregistré.':'Aucun calibrage enregistré.'}</p>`);
+   document.getElementById('beginCal').onclick=()=>{knownDistance=Number(document.getElementById('known').value);if(!Number.isFinite(knownDistance)||knownDistance<=0){alert('Entre une distance supérieure à zéro.');return;}closeSheet();setMode('calibrate');};
+ }
+ function showMeasure(){closeSheet();setMode('measure');}
+ function handleTap(x,y){
+   if(points.length>=2)points=[];
+   points.push({x,y});draw();
+   if(points.length===1){setHint('Premier point placé. Touche le deuxième point.');return;}
+   const px=Math.hypot(points[1].x-points[0].x,points[1].y-points[0].y);
+   if(px<4){setHint('Les points sont trop proches. Recommence.');return;}
+   if(mode==='calibrate'){
+     metersPerPixel=knownDistance/px;
+     setHint(`Calibrage enregistré : ${knownDistance.toFixed(2)} m. Ouvre ⋮ puis Mesurer.`);
+   }else if(metersPerPixel===null){
+     setHint('Calibrage nécessaire : ouvre ⋮ puis Calibrage.');
+   }else{
+     const m=px*metersPerPixel;setHint('Mesure estimée : '+(m>=1?m.toFixed(2)+' m':(m*100).toFixed(1)+' cm'));
+   }
+ }
+ canvas.addEventListener('click',e=>{const r=canvas.getBoundingClientRect();handleTap(e.clientX-r.left,e.clientY-r.top);});
+ document.getElementById('pointBtn').onclick=()=>{
+   // Le bouton central rappelle de toucher directement l'endroit voulu dans l'image.
+   setHint('Touche directement le premier ou le deuxième point sur l’image.');
+ };
+ document.getElementById('menuBtn').onclick=()=>menu.classList.toggle('open');
+ menu.addEventListener('click',async e=>{
+   const b=e.target.closest('button[data-action]');if(!b)return;menu.classList.remove('open');
+   switch(b.dataset.action){
+    case 'measure':showMeasure();break;
+    case 'calibrate':showCalibrate();break;
+    case 'switch':facing=facing==='environment'?'user':'environment';await startCamera();break;
+    case 'reset':metersPerPixel=null;points=[];draw();setMode('measure');setHint('Tout est réinitialisé. Effectue un nouveau calibrage.');break;
+    case 'help':openSheet('Aide et précision',`<p>Cette première version mesure une distance sur l’image après un calibrage avec une longueur connue. Pour de meilleurs résultats, garde le téléphone immobile et les deux distances sur le même mur, à la même profondeur et avec un angle similaire.</p><p>Ce prototype ne réalise pas encore un scan 3D et ne mesure pas automatiquement la profondeur. Les résultats sont des estimations.</p>`);break;
+   }
+ });
+ document.getElementById('undoBtn').onclick=()=>{points=[];draw();setHint('Points effacés. Recommence en touchant l’image.');};
+ document.getElementById('closeSheet').onclick=closeSheet;
+ backdrop.addEventListener('click',e=>{if(e.target===backdrop)closeSheet();});
+ window.addEventListener('resize',canvasSize);
+ startCamera();
+})();
+</script>
+</body>
+</html>
